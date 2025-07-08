@@ -44,6 +44,7 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-stream:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://airflow:airflow@postgres-stream:5432/airflow
     command: >
       bash -c "airflow db init && airflow users create --username airflow --password airflow --firstname Airflow --lastname User --role Admin --email admin@example.com"
     networks:
@@ -64,6 +65,7 @@ services:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-stream:5432/airflow
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://airflow:airflow@postgres-stream:5432/airflow
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
@@ -87,6 +89,8 @@ services:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres-stream:5432/airflow
       - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False # Added for consistency
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgresql://airflow:airflow@postgres-stream:5432/airflow
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs

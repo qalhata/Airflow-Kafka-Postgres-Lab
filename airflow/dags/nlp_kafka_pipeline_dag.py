@@ -21,12 +21,13 @@ def _ingest_from_kafka(**context):
         bootstrap_servers=['kafka-broker:9092'],
         auto_offset_reset='earliest',
         group_id='airflow-nlp-group',
-        value_deserializer=lambda x: x.decode('utf-8'),
+        # Correctly deserialize the JSON message from the producer
+        value_deserializer=lambda x: json.loads(x.decode('utf-8')),
         consumer_timeout_ms=5000,  # Stop after 5s of no new messages
         max_poll_records=20  # Process up to 20 messages per run
     )
 
-    messages = [msg.value for msg in consumer]
+    messages = [msg.value.get('text') for msg in consumer if msg.value and msg.value.get('text')]
     consumer.close()
 
     if not messages:
@@ -98,14 +99,17 @@ def _save_result(**context):
 
     print(f"---- Saving {len(entities)} processed records to database ----")
 
-    for record in entities:
-        original_text = record['original_text']
-        # Convert the list of entity dicts to a JSON string for the JSONB column
-        entities_json = json.dumps(record['entities'])
-        cursor.execute(
-            "INSERT INTO tweet_entities (original_text, entities) VALUES (%s, %s)",
-            (original_text, entities_json)
-        )
+    # Prepare data for bulk insert for better performance
+    records_to_insert = [
+        (record['original_text'], json.dumps(record['entities']))
+        for record in entities
+    ]
+
+    # Use executemany for an efficient bulk insert operation
+    cursor.executemany(
+        "INSERT INTO tweet_entities (original_text, entities) VALUES (%s, %s)",
+        records_to_insert
+    )
 
     conn.commit()
     cursor.close()

@@ -21,5 +21,8 @@ COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /requirements.txt
 
+RUN python -m spacy download en_core_web_sm
+
+
 # ✅ Option 2 (if no requirements.txt): install directly
 # RUN pip install --no-cache-dir kafka-python fastapi uvicorn pandas ...
