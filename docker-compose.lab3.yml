@@ -1,0 +1,140 @@
+# version: '3.9'
+
+# ================================
+# MODULE A: BASE SERVICES
+# ================================
+services:
+  postgres-stream:
+    image: postgres:14
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: streaming
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kafka-lab-net
+
+  pgadmin:
+    image: dpage/pgadmin4
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    depends_on:
+      - postgres-stream
+    networks:
+      - kafka-lab-net
+
+  airflow-webserver:
+    image: custom-airflow:lab3
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:postgres@postgres-stream:5432/streaming
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./airflow/kafka:/opt/airflow/kafka
+      - ./data:/opt/airflow/data
+    # Initialize the database and create an admin user
+    depends_on:
+      - postgres-stream
+    networks:
+      - kafka-lab-net
+    command: >
+      bash -c "airflow db upgrade && \
+               airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com && \
+               exec airflow webserver"
+
+  airflow-scheduler:
+    image: custom-airflow:lab3
+    depends_on:
+      - airflow-webserver
+    command: >
+      bash -c "
+        while ! airflow db check; do
+          echo 'Waiting for Airflow DB to be initialized...';
+          sleep 5;
+        done;
+        exec airflow scheduler
+      "
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://postgres:postgres@postgres-stream:5432/streaming
+      - AIRFLOW__CORE__DAGS_FOLDER=/opt/airflow/dags
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./airflow/kafka:/opt/airflow/kafka
+      - ./data:/opt/airflow/data
+    networks:
+      - kafka-lab-net
+
+# ================================
+# MODULE B1: KAFKA STACK (CONFLUENT - FOR BEGINNERS)
+# ================================
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - kafka-lab-net
+
+  kafka-broker:
+    image: confluentinc/cp-kafka:7.5.0
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - kafka-lab-net
+
+# ================================
+# MODULE B2: KAFKA STACK (BITNAMI - ADVANCED, KRAFT MODE)
+# ================================
+# Uncomment to try Bitnami KRaft mode (Zookeeper-less)
+#  kafka-broker:
+#    image: bitnami/kafka:latest
+#    ports:
+#      - "9092:9092"
+#    environment:
+#      - KAFKA_KRAFT_MODE=true
+#      - KAFKA_CFG_NODE_ID=1
+#      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+#      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka-broker:9093
+#      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+#      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka-broker:9092
+#      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+#      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+#      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+#    networks:
+#      - kafka-lab-net
+
+# ================================
+# VOLUMES AND NETWORKS
+# ================================
+volumes:
+  postgres_data:
+
+networks:
+  kafka-lab-net:
+    driver: bridge

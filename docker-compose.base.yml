@@ -1,0 +1,31 @@
+# File: docker-compose.base.yml
+# This is the master base compose file for Kafka + PostgreSQL microservices for Day 3 Labs
+# version: '3.8'
+
+services:
+  postgres-stream:
+    image: postgres:14
+    container_name: postgres-streaming
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: streamdb
+    volumes:
+      - ./postgres/db_init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres-stream
+
+volumes:
+  pgadmin-data:
